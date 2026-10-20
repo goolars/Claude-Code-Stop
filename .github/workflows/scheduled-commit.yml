@@ -1,0 +1,28 @@
+name: scheduled-commit
+on:
+  schedule:
+    - cron: "13 13 * * *"   # fires daily ~13:13 UTC; the gate below decides if it actually commits
+  workflow_dispatch: {}      # lets you run it on demand to test
+permissions:
+  contents: write
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decide if today is an active day
+        id: gate
+        run: |
+          # 1 = commit today, 0 = skip. This example is 3 on, 1 off, 4 on, 2 off (a 10-day cycle).
+          # Edit the array to any pattern you want; the cycle length is just its length.
+          PATTERN=(1 1 1 0 1 1 1 1 0 0)
+          DAY=$(( $(date -u +%s) / 86400 ))
+          IDX=$(( DAY % ${#PATTERN[@]} ))
+          echo "active=${PATTERN[$IDX]}" >> "$GITHUB_OUTPUT"
+      - name: Commit
+        if: steps.gate.outputs.active == '1'
+        run: |
+          git config user.name "Lars"
+          git config user.email "larssonovi@gmail.com"
+          git commit --allow-empty -m "chore: update"
+          git push
